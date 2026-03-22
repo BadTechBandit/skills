@@ -1,64 +1,49 @@
 # Agent Skills
 
-Open-source skills for AI coding agents. Works with [OpenClaw](https://openclaw.ai), [Claude Code](https://docs.anthropic.com/en/docs/claude-code), and any agent that reads SKILL.md files.
+Open-source skills for AI coding agents. Works with Claude Code, Codex, Cursor, Windsurf, and any agent that reads SKILL.md files.
+
+## Install
+
+```bash
+npx skills add BadTechBandit/skills
+```
+
+Or install a single skill:
+
+```bash
+npx skills add BadTechBandit/skills --skill vibe-audit
+```
 
 ## Skills
 
 | Skill | Description |
 |-------|-------------|
+| [vibe-audit](./vibe-audit/) | Audit your vibe-coded app against 25 security, performance, and code quality checks. Generates a report with pass/fail scorecard and self-contained fix files you hand right back to your coding agent. |
 | [moat-analyzer](./moat-analyzer/) | Analyze any business against the 10 Moats framework. Scores LLM disruption risk, moat durability, and identifies startup opportunities. |
 
-## Installation
+## How it works
 
-### OpenClaw
+Each skill is a folder with a `SKILL.md` file and optional `references/`, `scripts/`, and `assets/` directories. Your coding agent reads the SKILL.md and follows the instructions using whatever tools it has available.
+
+```
+vibe-audit/
+├── SKILL.md                          # Main instructions
+└── references/
+    ├── security.md                   # 10 checks
+    ├── database-performance.md       # 4 checks
+    ├── infrastructure.md             # 8 checks
+    └── code-quality.md               # 3 checks
+```
+
+## Manual install
+
+If you prefer not to use the skills CLI:
+
 ```bash
-# Install a single skill
-openclaw skill add https://github.com/CREWorx/skills/tree/main/moat-analyzer
-
-# Or clone and symlink
-git clone https://github.com/CREWorx/skills.git
-ln -s $(pwd)/skills/moat-analyzer ~/.openclaw/skills/moat-analyzer
+git clone https://github.com/BadTechBandit/skills.git
+ln -s $(pwd)/skills/vibe-audit ~/.claude/skills/vibe-audit
+ln -s $(pwd)/skills/vibe-audit ~/.codex/skills/vibe-audit
 ```
-
-### Claude Code
-```bash
-# Copy skill folder to Claude's skills directory
-git clone https://github.com/CREWorx/skills.git
-cp -r skills/moat-analyzer ~/.claude/skills/
-```
-
-### Other Agents
-Each skill is a self-contained folder with a `SKILL.md` file. Point your agent at the SKILL.md and it will follow the instructions using whatever tools it has available.
-
-## Recommended: Exa for Web Research
-
-Many skills benefit from web research. We recommend [Exa](https://exa.ai) for the best results, especially for company intelligence and LinkedIn lookups. But any web search tool works.
-
-**Why Exa:**
-- Advanced semantic search (not just keyword matching)
-- Company research with funding, employee, and competitor data
-- LinkedIn profile search for finding key contacts
-- Deep research mode for comprehensive analysis
-- Available as an MCP server for easy integration
-
-**Setup Exa MCP:**
-```json
-{
-  "mcpServers": {
-    "exa": {
-      "url": "https://mcp.exa.ai/mcp?exaApiKey=YOUR_KEY"
-    }
-  }
-}
-```
-
-Get your API key at [exa.ai](https://exa.ai). Free tier available.
-
-**Alternatives that also work:** Perplexity, Tavily, SerpAPI, browser automation, or any tool that can search the web.
-
-## Contributing
-
-Have a skill to share? PRs welcome. Each skill should be a folder with at minimum a `SKILL.md` file.
 
 ## License
 
