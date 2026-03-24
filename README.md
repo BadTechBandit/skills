@@ -4,7 +4,7 @@ Open-source skills for AI coding agents. Works with Claude Code, Codex, Cursor, 
 
 Some of these skills I found and kept. Some I built at 2 a.m. when nothing else fit. If it's here, it worked.
 
-— Roman
+Roman
 
 ## Install
 
