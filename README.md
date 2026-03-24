@@ -20,15 +20,7 @@ npx skills add BadTechBandit/skills --skill vibe-audit
 |-------|-------------|
 | [vibe-audit](./vibe-audit/) | Audit your vibe-coded app against 25 security, performance, and code quality checks. Generates a report with pass/fail scorecard and self-contained fix files you hand right back to your coding agent. |
 | [moat-analyzer](./moat-analyzer/) | Analyze any business against the 10 Moats framework. Scores LLM disruption risk, moat durability, and identifies startup opportunities. |
-
-### Marketing Skills (34 skills)
-
-A full suite of marketing skills for CRO, copywriting, SEO, GEO, analytics, and growth engineering. [See the full list and docs.](./marketing-skills-for-agents/)
-
-```bash
-# Install all marketing skills
-npx skills add BadTechBandit/skills@marketing-skills-for-agents
-```
+| [marketing-skills-for-agents](./marketing-skills-for-agents/) | 34 marketing skills — CRO, copywriting, SEO, GEO, analytics, paid ads, email sequences, sales enablement, and growth engineering. [See full list.](./marketing-skills-for-agents/) |
 
 ## How it works
 
