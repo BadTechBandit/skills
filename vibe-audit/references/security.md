@@ -1,6 +1,6 @@
 # Security Checks
 
-10 checks for authentication, authorization, input handling, and transport security.
+16 checks for authentication, authorization, input handling, and transport security.
 
 ---
 
@@ -75,6 +75,13 @@ Unsanitized user input enables SQL injection, XSS, and command injection. AI-gen
    Search for `req.body`, `request.json()`, `await request.json()` in route files
 4. Compare against validation usage: `.parse(`, `.validate(`, `.safeParse(`
 5. If API routes access request bodies without validation → FAIL
+6. **SQL injection specifically:** Search for raw SQL string concatenation:
+   ```
+   `SELECT.*\$\{|`INSERT.*\$\{|`UPDATE.*\$\{|`DELETE.*\$\{
+   "SELECT " +|"INSERT " +|"UPDATE " +|"DELETE " +
+   query\(.*\+.*req\.|query\(.*\+.*body
+   ```
+   If SQL queries are built via string concatenation or template literals with user input → FAIL
 
 ### Pass criteria
 
@@ -218,14 +225,15 @@ CORS policy explicitly configured with specific allowed origins (not wildcard wi
 
 ---
 
-## S8: Admin Routes Without Role Checks
+## S8: Admin Routes Without Role Checks + Unprotected API Routes
 
 **Severity:** CRITICAL
 
-Any authenticated user can access admin functionality. One signup away from full admin access.
+Any authenticated user can access admin functionality. Unprotected internal API routes let anyone call sensitive endpoints.
 
 ### Detection
 
+**Admin routes:**
 Find admin-related routes:
 ```
 find files matching */admin* in route/page/api directories
@@ -237,15 +245,25 @@ role|isAdmin|admin.*check|authorize|permission|rbac|guard
 ```
 
 If admin routes exist WITHOUT role verification → FAIL.
-If no admin routes found → SKIP.
+If no admin routes found → SKIP admin portion.
+
+**All API routes (auth middleware coverage):**
+Count total API routes and check how many have auth middleware:
+```
+auth|getSession|getServerSession|currentUser|requireAuth|withAuth|protect|middleware
+```
+in `app/**/route.*`, `pages/api/**`, or Express route files.
+
+If >25% of non-public API routes lack auth checks → FAIL.
+Exclude intentionally public routes (health check, webhooks with their own verification).
 
 ### Pass criteria
 
-All admin routes verify user role/permissions server-side. Role checks happen in middleware or at the top of handlers, not just UI hiding.
+All admin routes verify user role/permissions server-side. Auth middleware applied to all non-public API routes. Role checks happen in middleware or at the top of handlers, not just UI hiding.
 
 ### Fix approach
 
-Add role check middleware. Verify role from session/JWT server-side. Never trust client-provided role claims. **Effort: Medium**
+Add role check middleware for admin. Add auth middleware to all protected API routes. Verify role from session/JWT server-side. Never trust client-provided role claims. **Effort: Medium**
 
 ---
 
@@ -306,3 +324,200 @@ HTTPS enforced via hosting platform, redirect middleware, or HSTS headers.
 ### Fix approach
 
 Add HTTPS redirect in middleware/proxy. Set `Strict-Transport-Security: max-age=31536000; includeSubDomains`. Most modern hosting handles this automatically. **Effort: Small**
+
+---
+
+## S11: Weak or Default JWT Secrets
+
+**Severity:** CRITICAL
+
+A JWT secret of "secret", "password", or any value copied from a tutorial lets anyone forge valid tokens and impersonate any user.
+
+### Detection
+
+Search for JWT secret configuration:
+```
+JWT_SECRET|JWT_KEY|TOKEN_SECRET|AUTH_SECRET|NEXTAUTH_SECRET
+```
+in `.env*` files. DO NOT output the actual values — only check characteristics.
+
+Check for weak/default values:
+```
+secret|password|123456|changeme|your-secret|my-secret|test|development|jwt_secret
+```
+
+Also search source code for hardcoded JWT secrets:
+```
+sign\(.*['"]secret['"]\)|sign\(.*['"]password['"]\)|SECRET.*=.*['"]secret
+```
+
+If JWT secret matches common defaults or is fewer than 32 characters → FAIL.
+If no JWT usage found → SKIP.
+
+### Pass criteria
+
+JWT secret is a strong, randomly generated value (32+ characters). Stored in environment variables, not source code. Different between environments.
+
+### Fix approach
+
+Generate a strong secret: `openssl rand -base64 32`. Store in `.env.local`. Use different secrets per environment. **Effort: Small**
+
+---
+
+## S12: Error Responses Leaking Internal Details
+
+**Severity:** HIGH
+
+Stack traces, database table names, file paths, and SQL errors in API responses give attackers a blueprint of your system.
+
+### Detection
+
+Search for error handling in API routes that passes raw errors to responses:
+```
+res.json\(.*err|res.send\(.*err|Response.json\(.*error.message|stack|stackTrace
+catch.*\{.*res.*error\.(message|stack)
+```
+
+Check for development error handlers in production:
+```
+NODE_ENV.*development.*stack|showStack|verbose.*error
+```
+
+Search for database errors being forwarded:
+```
+catch.*\{.*res.*(500|error).*e\b
+```
+
+If error responses include stack traces, file paths, or raw database errors → FAIL.
+
+### Pass criteria
+
+Production error responses return generic messages ("Something went wrong") with an error ID for internal correlation. Stack traces, SQL errors, and file paths never reach the client. Detailed errors logged server-side only.
+
+### Fix approach
+
+Create a global error handler that catches all errors, logs them with a correlation ID, and returns a sanitized response. In Next.js, use `error.tsx` boundaries and sanitized API error responses. **Effort: Small**
+
+---
+
+## S13: Passwords Hashed with Weak Algorithms
+
+**Severity:** CRITICAL
+
+MD5 and SHA1 are broken for password hashing — rainbow tables crack them in seconds. Even SHA256 without salting is inadequate.
+
+### Detection
+
+Search for password hashing:
+```
+createHash.*md5|createHash.*sha1|createHash.*sha256
+md5\(|sha1\(|SHA1|MD5
+```
+
+Check `package.json` for proper hashing libraries:
+`bcrypt`, `bcryptjs`, `argon2`, `scrypt`
+
+If password hashing uses MD5, SHA1, or unsalted SHA256 → FAIL.
+If using managed auth (Clerk, Supabase Auth, Firebase Auth, NextAuth with providers) → SKIP.
+If no custom password handling found → SKIP.
+
+### Pass criteria
+
+Passwords hashed with bcrypt (cost factor ≥10), argon2, or scrypt. No MD5, SHA1, or plain SHA256 for passwords.
+
+### Fix approach
+
+Install `bcryptjs`. Replace `createHash('md5')` with `bcrypt.hash(password, 12)`. Migrate existing hashes by re-hashing on next login. **Effort: Medium**
+
+---
+
+## S14: IDOR on Resource Endpoints
+
+**Severity:** CRITICAL
+
+If `/api/users/123/orders` works for any authenticated user, anyone can enumerate and access other users' data by changing the ID.
+
+### Detection
+
+Search for resource endpoints that use URL parameters without ownership checks:
+```
+params.id|params.userId|params.orderId|req.params|request.nextUrl.searchParams
+```
+in API route handlers.
+
+Then check if those handlers verify the requesting user owns the resource:
+```
+session.user.id.*params|currentUser.*params|where.*userId.*session
+```
+
+If resource endpoints use URL/query params to fetch data WITHOUT checking ownership against the authenticated user → FAIL.
+
+### Pass criteria
+
+All resource endpoints verify the authenticated user owns or has permission to access the requested resource. Queries include `WHERE userId = session.user.id` or equivalent ownership filter.
+
+### Fix approach
+
+Add ownership checks to every resource endpoint: `where: { id: params.id, userId: session.user.id }`. For shared resources, implement explicit permission checks. Never trust client-provided user IDs for authorization. **Effort: Medium**
+
+---
+
+## S15: Open Redirects in Callback URLs
+
+**Severity:** HIGH
+
+If your login callback accepts an arbitrary `redirect` or `callbackUrl` parameter, attackers can redirect users to phishing sites via your trusted domain.
+
+### Detection
+
+Search for redirect parameters in auth flows and route handlers:
+```
+callbackUrl|redirect_uri|returnTo|next=|redirect=|return_url|goto=
+```
+
+Check if redirect targets are validated:
+```
+allowedRedirects|validRedirects|whitelist.*url|startsWith.*\/|isRelativeUrl|new URL.*origin
+```
+
+If redirect parameters are used without validating the destination is a same-origin or allowlisted URL → FAIL.
+
+### Pass criteria
+
+All redirect parameters validated against an allowlist of domains or restricted to relative paths (same-origin). No open redirects to arbitrary external URLs.
+
+### Fix approach
+
+Validate redirect URLs: only allow relative paths (`/dashboard`) or a strict allowlist of domains. Use `new URL(redirect).origin === new URL(request.url).origin` check. Strip any redirect that doesn't match. **Effort: Small**
+
+---
+
+## S16: Sessions Not Invalidated on Logout
+
+**Severity:** HIGH
+
+If logout only clears the client-side cookie/token but doesn't invalidate the session server-side, a stolen token remains valid indefinitely after the user "logs out."
+
+### Detection
+
+Search for logout handlers:
+```
+logout|signOut|sign-out|logOut|log-out
+```
+
+Check if logout destroys the server-side session or adds the token to a blocklist:
+```
+session.destroy|delete.*session|revoke|blocklist|blacklist|invalidate.*token
+```
+
+If logout only clears cookies client-side (`res.clearCookie` or `cookies().delete()`) without server-side invalidation → FAIL.
+If using managed auth (Clerk, Supabase Auth) that handles invalidation → PASS.
+If using stateless JWTs without a refresh token revocation strategy → FAIL.
+
+### Pass criteria
+
+Logout invalidates the session server-side. For JWTs: refresh tokens are revoked and access tokens are short-lived (≤15 min). For session-based auth: session destroyed in the store.
+
+### Fix approach
+
+**Session-based:** Call `session.destroy()` on logout. **JWT:** Implement short-lived access tokens (15 min) + revocable refresh tokens. On logout, delete the refresh token from the database. **Effort: Medium**

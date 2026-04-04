@@ -2,7 +2,7 @@
 name: vibe-audit
 description: |
   Comprehensive security, performance, and code quality audit for vibe-coded applications.
-  Checks 25 common issues that make apps vulnerable, slow, or fragile — from hardcoded API keys
+  Checks 34 common issues that make apps vulnerable, slow, or fragile — from hardcoded API keys
   to missing rate limiting to absent error boundaries. Produces a structured report folder with
   pass/fail scorecard and self-contained implementation plans for every failing check.
   Use when: "audit my app", "check my code", "is this ready to ship", "security check",
@@ -12,7 +12,7 @@ description: |
 
 # Vibe Audit
 
-Audit a project against 25 checks across 4 categories. Produce a report folder with a summary scorecard and self-contained fix files for every failure.
+Audit a project against 34 checks across 4 categories. Produce a report folder with a summary scorecard and self-contained fix files for every failure.
 
 ## Phase 1: Reconnaissance
 
@@ -42,10 +42,10 @@ Run checks from 4 categories. Read the reference file for each category before c
 
 | Category | Reference File | Checks |
 |----------|---------------|--------|
-| Security | `references/security.md` | 10 checks: auth, keys, CORS, rate limiting, sessions, CSP |
+| Security | `references/security.md` | 16 checks: auth, keys, CORS, rate limiting, sessions, CSP, IDOR, open redirects, JWT secrets, password hashing, error leakage, session invalidation |
 | Database & Performance | `references/database-performance.md` | 4 checks: indexing, pooling, pagination, validation |
-| Infrastructure & Ops | `references/infrastructure.md` | 8 checks: webhooks, env vars, logging, backups, secrets |
-| Code Quality | `references/code-quality.md` | 3 checks: error boundaries, TypeScript, request limits |
+| Infrastructure & Ops | `references/infrastructure.md` | 10 checks: webhooks, env vars, logging, backups, secrets, file uploads, root process, exposed DB ports |
+| Code Quality | `references/code-quality.md` | 4 checks: error boundaries, TypeScript, request limits, npm audit |
 
 ### Execution strategy
 
@@ -63,9 +63,14 @@ Skip checks that do not apply to the detected stack:
 - No database detected → skip all database-performance checks
 - No Stripe/payment processor detected → skip webhook signature check
 - Hosting is Vercel or Cloudflare → skip HTTPS redirect check (handled automatically)
-- No admin routes found → skip admin role check
+- No admin routes found → skip admin role portion of S8
 - No email sending found → skip synchronous email check
-- Managed auth (Clerk, Supabase Auth, Firebase Auth) → skip password reset expiry (handled by provider)
+- Managed auth (Clerk, Supabase Auth, Firebase Auth) → skip password reset expiry and password hashing checks (handled by provider)
+- No JWT usage found → skip JWT secret check
+- No custom password handling → skip password hashing check
+- No file uploads found → skip MIME validation check
+- Serverless hosting (Vercel, Cloudflare Workers, Lambda) → skip root process and exposed DB port checks
+- No Dockerfile or server process config → skip root process check
 
 Mark skipped checks as `SKIP` with the reason in the report.
 
@@ -105,9 +110,9 @@ Only create issue files for FAILING checks. Passing and skipped checks appear on
 
 ## Stats
 
-- **Passed:** X/25
-- **Failed:** Y/25
-- **Skipped:** Z/25
+- **Passed:** X/34
+- **Failed:** Y/34
+- **Skipped:** Z/34
 - **Critical failures:** N
 - **High failures:** N
 - **Medium failures:** N

@@ -1,6 +1,6 @@
 # Code Quality Checks
 
-3 checks for error handling, type safety, and request limits.
+4 checks for error handling, type safety, request limits, and dependency hygiene.
 
 ---
 
@@ -122,3 +122,34 @@ Request body size limits configured globally or per-route. Typical default: 1-10
 **Next.js Pages Router:** Add `export const config = { api: { bodyParser: { sizeLimit: '1mb' } } }` to route files.
 **Next.js App Router:** Configure in route segment config or `next.config.ts`.
 **Express:** `app.use(express.json({ limit: '1mb' }))`. **Effort: Small**
+
+---
+
+## C4: npm Packages Not Audited
+
+**Severity:** MEDIUM
+
+Known vulnerabilities sitting in `node_modules` because nobody ran `npm audit` since initial setup. One critical CVE in a transitive dependency and you're exposed.
+
+### Detection
+
+Check if the project has a lock file:
+```
+package-lock.json|yarn.lock|pnpm-lock.yaml|bun.lockb
+```
+
+If lock file exists, run or simulate an audit check:
+- Search for `npm audit`, `yarn audit`, or `pnpm audit` in CI/CD workflows (`.github/workflows/*`, `Makefile`, `package.json` scripts)
+- Check for automated dependency tools: `dependabot.yml`, `renovate.json`, `.snyk`
+
+If no audit in CI AND no automated dependency update tool configured → FAIL.
+
+Also check lock file age — if `package-lock.json` hasn't been modified in 90+ days and no dependency management tool is configured → FAIL.
+
+### Pass criteria
+
+`npm audit` (or equivalent) runs in CI pipeline. Or: automated dependency update tool (Dependabot, Renovate, Snyk) is configured and active. Known critical/high vulnerabilities are addressed.
+
+### Fix approach
+
+**Quick:** Run `npm audit` and fix critical/high issues with `npm audit fix`. **Sustainable:** Add Dependabot (`.github/dependabot.yml`) or Renovate (`renovate.json`) for automated PR creation on dependency updates. Add `npm audit --audit-level=high` to CI pipeline. **Effort: Small**

@@ -1,6 +1,6 @@
 # Infrastructure & Ops Checks
 
-8 checks for payment security, environment config, observability, and operational resilience.
+10 checks for payment security, environment config, observability, and operational resilience.
 
 ---
 
@@ -65,14 +65,15 @@ Install `@t3-oss/env-nextjs` (Next.js) or `envalid` (generic). Define all requir
 
 ---
 
-## I3: Images Uploaded Directly to Server
+## I3: Images Uploaded Directly to Server + No MIME Validation
 
-**Severity:** MEDIUM
+**Severity:** MEDIUM (storage) / HIGH (MIME validation)
 
-Local file storage means no CDN, no optimization, massive bandwidth costs, and lost files on redeploy in serverless environments.
+Local file storage means no CDN, no optimization, massive bandwidth costs, and lost files on redeploy. No MIME validation means attackers can upload executable files disguised as images.
 
 ### Detection
 
+**Storage check:**
 Check for file upload handling:
 ```
 multer|formidable|busboy|writeFile.*upload|createWriteStream|fs.write
@@ -84,19 +85,32 @@ Check for cloud storage:
 ```
 in `package.json`.
 
-If file uploads exist but no cloud storage → FAIL.
+If file uploads exist but no cloud storage → FAIL (storage).
 
 Also check for `public/uploads` or similar directories in the project.
+
+**MIME type validation check:**
+If file uploads exist, search for MIME type / file extension validation:
+```
+mimetype|mime-type|content-type|fileFilter|accept.*image|allowedTypes|allowedExtensions
+file\.type|\.endsWith|\.extension|magic-bytes|file-type
+```
+
+Check multer config for `fileFilter` function.
+Check formidable config for `filter` or file type checks.
+
+If file uploads exist WITHOUT MIME type validation → FAIL (MIME).
 
 If no file uploads found → SKIP.
 
 ### Pass criteria
 
-File uploads go to cloud storage (Vercel Blob, S3, Cloudinary, etc.) with CDN delivery. No files saved to local filesystem in production.
+File uploads go to cloud storage with CDN delivery. Upload handlers validate MIME type and file extension server-side. Only explicitly allowed file types accepted. No files saved to local filesystem in production.
 
 ### Fix approach
 
-Use `@vercel/blob` (Vercel), Cloudinary, or S3. Serve via CDN. Use `next/image` for optimization. **Effort: Medium**
+**Storage:** Use `@vercel/blob` (Vercel), Cloudinary, or S3. Serve via CDN. Use `next/image` for optimization.
+**MIME:** Add `fileFilter` to multer or equivalent validation. Check both `file.mimetype` and extension. Use an allowlist (`image/jpeg`, `image/png`, etc.), never a blocklist. Consider using `file-type` package for magic byte validation. **Effort: Medium**
 
 ---
 
@@ -267,3 +281,82 @@ If secrets found in source files → FAIL.
 ### Fix approach
 
 Add `.env`, `.env.local`, `.env*.local` to `.gitignore`. Create `.env.example` with placeholders. If secrets were previously committed, rotate them immediately — removing from code does not remove from git history. **Effort: Small**
+
+---
+
+## I9: Server Running as Root
+
+**Severity:** HIGH
+
+A compromised process running as root owns the entire machine. Any RCE vulnerability becomes a full system takeover.
+
+### Detection
+
+Check for Docker configuration:
+```
+Dockerfile|docker-compose.*
+```
+
+If Dockerfile found, search for:
+```
+USER|--chown|gosu|su-exec
+```
+
+If Dockerfile exists WITHOUT a `USER` directive (defaults to root) → FAIL.
+If `docker-compose.*` runs containers with `privileged: true` → FAIL.
+
+Check for process manager configuration:
+```
+pm2|ecosystem.config|supervisor
+```
+If PM2 config found, check for `uid`/`gid` settings.
+
+If hosting is serverless (Vercel, Cloudflare Workers, AWS Lambda) → SKIP (sandboxed by platform).
+If no Dockerfile or server process config found → SKIP.
+
+### Pass criteria
+
+Application runs as a non-root user. Dockerfile includes `USER appuser` or equivalent. No containers run in privileged mode.
+
+### Fix approach
+
+Add to Dockerfile: `RUN addgroup -S app && adduser -S app -G app` then `USER app` before the `CMD` directive. Remove `privileged: true` from docker-compose. **Effort: Small**
+
+---
+
+## I10: Database Port Exposed to Public Internet
+
+**Severity:** CRITICAL
+
+An exposed database port (5432, 3306, 27017) means anyone on the internet can attempt to connect. Combined with weak credentials, it's a direct path to full data exfiltration.
+
+### Detection
+
+Check `docker-compose.*` for database port mappings:
+```
+ports:.*5432|ports:.*3306|ports:.*27017|ports:.*6379
+```
+
+If database ports are mapped to `0.0.0.0` or without host binding (e.g., `"5432:5432"` instead of `"127.0.0.1:5432:5432"`) → FAIL.
+
+Check for firewall or network configuration:
+```
+fly.toml|railway.json|security-group|firewall
+```
+
+Check database connection strings for public hostnames vs internal/private networking:
+```
+DATABASE_URL|MONGO_URL|REDIS_URL
+```
+in `.env*` files. If connecting to `localhost` or private network IPs → likely PASS. If connecting to a public hostname → check if the provider handles network isolation (Neon, PlanetScale, Supabase handle this).
+
+If hosting is serverless with managed DB (Vercel + Neon, etc.) → SKIP (handled by provider).
+If no database → SKIP.
+
+### Pass criteria
+
+Database ports not exposed to public internet. Docker-compose binds DB ports to `127.0.0.1` only. Managed databases use private networking or provider-managed access controls.
+
+### Fix approach
+
+**Docker:** Change `"5432:5432"` to `"127.0.0.1:5432:5432"`. **Self-hosted:** Configure firewall to block external access to DB ports. **Cloud:** Use private networking / VPC peering. **Effort: Small**
