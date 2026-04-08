@@ -31,18 +31,21 @@ Enter a company name (or describe a business idea) and get:
 
 ## Install
 
-### OpenClaw
 ```bash
-openclaw skill add https://github.com/CREWorx/skills/tree/main/moat-analyzer
+npx skills add https://github.com/BadTechBandit/skills --skill moat-analyzer
 ```
 
-### Claude Code
+Browse on skills.sh: https://skills.sh/BadTechBandit/skills/moat-analyzer
+
+### Manual install
+
 ```bash
-cp -r moat-analyzer/ ~/.claude/skills/moat-analyzer/
+git clone https://github.com/BadTechBandit/skills.git
+ln -s $(pwd)/skills/moat-analyzer ~/.claude/skills/moat-analyzer
+ln -s $(pwd)/skills/moat-analyzer ~/.codex/skills/moat-analyzer
 ```
 
-### Any Agent
-Point your agent at `SKILL.md`. It contains the complete framework, scoring system, and output format.
+Or point any agent directly at `SKILL.md` — it contains the complete framework, scoring system, and output format.
 
 ## Usage
 
