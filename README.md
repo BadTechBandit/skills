@@ -10,6 +10,7 @@ Some of these skills I found and kept. Some I built at 2 a.m. when nothing else 
 
 | Skill | Description |
 |-------|-------------|
+| [hermes-skill-hygiene-review](./hermes-skill-hygiene-review/) | Review agent-created Hermes skills and surface only archive or merge candidates, so autonomous skill creation does not turn the live skills directory into stale context clutter. |
 | [humanizer](./humanizer/) | Rewrite AI-sounding text so it reads like a real person wrote it. Removes inflated language, fake depth, vague authority, repetitive structure, and other common AI writing tells. |
 | [anthropic-managed-agents](./anthropic-managed-agents/) | Primer + setup coach for Anthropic Claude Managed Agents — the hosted agent runtime with tools, MCP connectors, and skills. Turns an idea or spec into a setup blueprint. |
 | [vibe-audit](./vibe-audit/) | Audit your vibe-coded app against 34 security, performance, and code quality checks. Generates a report with pass/fail scorecard and self-contained fix files. |
@@ -19,6 +20,12 @@ Some of these skills I found and kept. Some I built at 2 a.m. when nothing else 
 Every skill folder has its own `README.md` with full description and manual install fallback.
 
 ## Install a single skill
+
+### hermes-skill-hygiene-review
+
+```bash
+npx skills add https://github.com/BadTechBandit/skills --skill hermes-skill-hygiene-review
+```
 
 ### humanizer
 
